@@ -1,57 +1,67 @@
-""" --- Atomic structure calculator in the uncoupled basis --- """
-""" Written by D. J. Whiting (2017);
-	** Modified by F. S. Ponciano Ojeda (2021) **
-	@ QLM, Durham University """
-""" Calculates the energy levels of an atomic transition in an alkali-metal
-atom by diagonalising the Hamiltonian in the uncoupled momenta basis, suitable
-for looking at the Hyperfine Paschen-Back regime. """
+""" --- Atomic structure calculator in the uncoupled basis ---
 
-# from __future__ import division,print_function # Uncomment for Python 2 compatibility
-from numpy import matrix,arange,zeros,kron,eye,pi,dot,linspace,exp,array
+	Written by D. J. Whiting (2017)
+	** Modified by F. S. Ponciano Ojeda (2021) **
+	Quantum Light & Matter Group, Durham University, UK
+
+	Calculates the energy levels of a given state in an alkali-metal
+	atom by diagonalising the Hamiltonian in the uncoupled momenta basis,
+	suitable for looking at atoms in the Hyperfine Paschen-Back regime.
+"""
+
+from numpy import matrix,arange,zeros,kron,eye,pi,dot,linspace,exp,array,sqrt
 from scipy.linalg import eigh
 
-import sys
-sys.path.append("C:\'Users\'Francisco\'Documents\'Voigt_Boltzmann\'kB_Big_Diagram") #Change for general path
+import sys,os
+# Modify the following to create a directory for saving results of calculations
+try:
+	os.mkdir('./UncoupledBasis_results')
+except OSError:
+	pass
+try:
+	os.mkdir('./UncoupledBasis_figures')
+except OSError:
+	pass
 
 import matplotlib.pyplot as plt
-import matplotlib
 import fractions
 import atomdata
 import numpy as np
 
 from scipy.constants import *
+
 h = 2*pi*hbar
 muB = physical_constants['Bohr magneton'][0]
 kB = physical_constants['Boltzmann constant'][0]
 e0 = epsilon_0 #Permittivity of free space
 a0 = physical_constants['Bohr radius'][0]
-S = 0.5 #Electron spin
+S = 1/2.0 #Electron spin
 gS = -physical_constants['electron g factor'][0]
 
-from durhamcolours import *
+from durhamcolours import * #Change to use ElecSus library
 
 plt.rc('font',**{'family':'Serif','serif':['Times New Roman'],'weight':'bold'})
 params={'axes.labelsize':16,'xtick.labelsize':14,'ytick.labelsize':14,'legend.fontsize':12,'mathtext.fontset':'cm','mathtext.rm':'serif'}
 plt.rcParams.update(params)
 
-def jmat(j):
-	''' Builds a 2j+1 square matrix for the total orbital angular momentum,
-	defined as J = L + S. '''
+def AM_Matrix(l):
+	''' Builds a 2l + 1 square matrix for a general angular momentum *l* based
+	on construction of the raising and lowering operators. '''
 
-	dim = int(2*j + 1.0)
-	m = arange(j,-j - 1,-1)
-	JPlus = matrix(zeros((dim,dim)))
-	jm = (j*(j + 1) - m*(m + 1))**(1/2.0)
-	JPlus[range(0,dim - 1),range(1,dim)] = jm[1:]
-	JMinus = JPlus.transpose()
-	Jx = (1/2.0)*(JPlus + JMinus)
-	Jy = (-1j/2.0)*(JPlus - JMinus)
-	Jz = (1/2.0)*(JPlus*JMinus - JMinus*JPlus)
-	JJ = Jx,Jy,Jz
-	return JJ
+	dim = int(2*l + 1.0)
+	m = arange(l,-l - 1,-1)
+	LPlus = matrix(zeros((dim,dim))) #np.matrix no longer recommended; use arrays instead
+	lm = sqrt((l*(l + 1) - m*(m + 1)))
+	LPlus[range(0,dim - 1),range(1,dim)] = lm[1:]
+	LMinus = LPlus.transpose()
+	Lx = (1/2.0)*(LPlus + LMinus)
+	Ly = (-1j/2.0)*(LPlus - LMinus)
+	Lz = (1/2.0)*(LPlus*LMinus - LMinus*LPlus)
+	LL = Lx,Ly,Lz
+	return LL
 
-def jsum(j1,j2):
-	''' Adds matrices by doing the tensor product of each of the component
+def AM_MatAdd(j1,j2):
+	''' Adds two matrices by doing the tensor product of each of the component
 	square matrices with their counterpart's identity matrix. '''
 
 	dim1 = j1[0].shape[0]
@@ -66,13 +76,13 @@ def EvalsEvecs(I,L,S,J=0,B=0,IsotopeShift=0,PB=False):
 	''' Calculates the eigenvalues (energies) of the atomic system.
 	Valid for linear Zeeman and hyperfine Paschen-Back regimes. '''
 
-	SS,LL,II = jmat(S),jmat(L),jmat(I)
+	SS,LL,II = AM_Matrix(S),AM_Matrix(L),AM_Matrix(I)
 
 	### The order in which angular momenta are combined here defines the order
 	### of the decoupled angular momenta in the eigenvectors.
 	### Current order gives [mL[mS[mI]]]
-	JJ = jsum(LL,SS)
-	FF = jsum(JJ,II)
+	JJ = AM_MatAdd(LL,SS)
+	FF = AM_MatAdd(JJ,II)
 
 	S2 = SS[0]**2 + SS[1]**2 + SS[2]**2
 	L2 = LL[0]**2 + LL[1]**2 + LL[2]**2
@@ -130,9 +140,9 @@ def BreitRabi(I,L,S,J=None,Bmax=1.5,ylim=None,save=False):
 	for i in range(len(Bs)):
 		Es[i,:] = EvalsEvecs(I,L,S,J,Bs[i])[0]
 
-	fig = plt.figure(facecolor='white', figsize=(10,8))
+	fig = plt.figure(facecolor='None', figsize=(10,8))
 	ax = fig.add_subplot(111)
-	ax.plot(Bs,Es/1e9,'k')
+	ax.plot(Bs,Es/1e9,color=d_black,lw=2)
 	ax.set_xlabel('Magnetic field strength (T)',fontweight='bold')
 	ax.set_ylabel('Energy (GHz)',fontweight='bold')
 	ax.set_xlim(0,Bmax)
@@ -144,6 +154,7 @@ def BreitRabi(I,L,S,J=None,Bmax=1.5,ylim=None,save=False):
 	fig.text(0.25,0.8,r'$^{87}$Rb',size=16,ha='center',fontweight='bold')
 	fig.text(0.25,0.775,r'L = '+str(L)+', J = '+str(fractions.Fraction(J))+', I = '+str(fractions.Fraction(I)),size=16,ha='center',fontweight='bold')
 
+	# Place an indicator at the field at which the HPB regime is entered
 	if np.logical_and(L == 0,(2*J+1) == 2):
 		ax.vlines(0.49,-ylim-1,ylim+1,color='r',ls=':')
 	if np.logical_and(L == 1,(2*J+1) == 2):
@@ -155,20 +166,20 @@ def BreitRabi(I,L,S,J=None,Bmax=1.5,ylim=None,save=False):
 	fig.text(0.865,0.895,r'$(J,m_{J};I,m_{I})$',size=16,ha='center',fontweight='bold')
 
 	if save == True:
-		plt.savefig('./Plots/B_'+str(B)+'_Rb_'+str(I)+'_'+str(L)+'_'+str(J)+'.pdf',dpi=300)
-		plt.savefig('./Plots/B_'+str(B)+'_Rb_'+str(I)+'_'+str(L)+'_'+str(J)+'.png',dpi=300)
-		# np.savetxt('./BR_Eigen_'+str(B)+'_Rb_'+str(I)+'_'+str(L)+'_'+str(J)+'.csv',Es[0,:],delimiter=',')
+		plt.savefig('./UncoupledBasis_figures/B_'+str(B)+'_Rb_'+str(I)+'_'+str(L)+'_'+str(J)+'.pdf',dpi=300)
+		plt.savefig('./UncoupledBasis_figures/B_'+str(B)+'_Rb_'+str(I)+'_'+str(L)+'_'+str(J)+'.png',dpi=300)
 
 def MomentumDecomp(I,L,S,J=None,B=0,ylim=None,cutoff=0.001):
 	''' Calculates the admixture/decomposition of the atomic energy levels
 	in terms of the uncoupled basis (m_L,m_S,m_I) states. '''
+
 	output_states = []
 	if ylim == None:
 		ylim = np.inf
 	evalsevecs = EvalsEvecs(I,L,S,J,B)
 	evecs = abs(evalsevecs[1])
 	evals = evalsevecs[0]/1e9
-	evecs,evals=evecs[:,::-1],evals[::-1] # Reverse the array so highest energy comes first
+	evecs,evals = evecs[:,::-1],evals[::-1] # Reverse the array so highest energy comes first
 	print('Decoupled quantum numbers with fractions >', cutoff)
 	for i in range(evecs.shape[1]):
 		if abs(evals[i])<ylim+1:
@@ -192,24 +203,23 @@ def MomentumDecomp(I,L,S,J=None,B=0,ylim=None,cutoff=0.001):
 
 if __name__=="__main__":
 	I = 3/2
-	L = 1
+	L = 0
 	S = 1/2
-	J = 3/2
-	# Bvalues = [0.4,0.6,1.5,8,15,35] # Tesla
-	Bvalues = [0.2,0.6,1.5]
+	J = 1/2
+	Bvalues = [0.2,0.6,1.5] #in Tesla
 
 	for B in Bvalues:
-		results_decomp = './Uncoupled basis results/StateDecomp_Rb_'+str(I)+'_'+str(L)+'_'+str(J)+'_'+str(B)+'T.txt'
 		print('B = '+str(B))
 		print('Energies: \n')
 		print(EvalsEvecs(I,L,S,J,B)[0])
 		print('-----\t-----\t-----')
 		# np.savetxt('./Uncoupled basis results/EigenVals_Rb_'+str(I)+'_'+str(L)+'_'+str(J)+'_'+str(B)+'T.csv',EvalsEvecs(I,L,S,J,B)[0],delimiter=',')
 
-		g = 3/2 + (S*(S+1)-L*(L+1))/(2*J*(J+1))
+		g = 3/2 + (S*(S + 1) - L*(L + 1))/(2*J*(J + 1))
 		ylim = 1.5*J*((g*muB*B/h)/1e9)
 		BreitRabi(I,L,S,J,B,ylim=ylim,save=False)
 		MomentumDecomp(I,L,S,J,B,ylim=ylim)
+		results_decomp = './UncoupledBasis_results/StateDecomp_Rb_'+str(I)+'_'+str(L)+'_'+str(J)+'_'+str(B)+'T.txt'
 		# with open(results_decomp,'w') as file_output:
 		# 	print >> file_output, MomentumDecomp(I,L,S,J,B,ylim=ylim)
 
