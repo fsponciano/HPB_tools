@@ -38,7 +38,7 @@ a0 = physical_constants['Bohr radius'][0]
 S = 1/2.0 #Electron spin
 gS = -physical_constants['electron g factor'][0]
 
-from durhamcolours import * #Change to use ElecSus library
+from elecsus.libs.durhamcolours import * # Optional: use colour palette from ElecSus installation
 
 plt.rc('font',**{'family':'Serif','serif':['Times New Roman'],'weight':'bold'})
 params={'axes.labelsize':16,'xtick.labelsize':14,'ytick.labelsize':14,'legend.fontsize':12,'mathtext.fontset':'cm','mathtext.rm':'serif'}
@@ -50,13 +50,13 @@ def AM_Matrix(l):
 
 	dim = int(2*l + 1.0)
 	m = arange(l,-l - 1,-1)
-	LPlus = matrix(zeros((dim,dim))) #np.matrix no longer recommended; use arrays instead
+	LPlus = array(zeros((dim,dim)))
 	lm = sqrt((l*(l + 1) - m*(m + 1)))
 	LPlus[range(0,dim - 1),range(1,dim)] = lm[1:]
 	LMinus = LPlus.transpose()
 	Lx = (1/2.0)*(LPlus + LMinus)
 	Ly = (-1j/2.0)*(LPlus - LMinus)
-	Lz = (1/2.0)*(LPlus*LMinus - LMinus*LPlus)
+	Lz = (1/2.0)*(LPlus @ LMinus - LMinus @ LPlus)
 	LL = Lx,Ly,Lz
 	return LL
 
@@ -84,11 +84,11 @@ def EvalsEvecs(I,L,S,J=0,B=0,IsotopeShift=0,PB=False):
 	JJ = AM_MatAdd(LL,SS)
 	FF = AM_MatAdd(JJ,II)
 
-	S2 = SS[0]**2 + SS[1]**2 + SS[2]**2
-	L2 = LL[0]**2 + LL[1]**2 + LL[2]**2
-	J2 = JJ[0]**2 + JJ[1]**2 + JJ[2]**2
-	I2 = II[0]**2 + II[1]**2 + II[2]**2
-	F2 = FF[0]**2 + FF[1]**2 + FF[2]**2
+	S2 = SS[0] @ SS[0] + SS[1] @ SS[1] + SS[2] @ SS[2]
+	L2 = LL[0] @ LL[0] + LL[1] @ LL[1] + LL[2] @ LL[2]
+	J2 = JJ[0] @ JJ[0] + JJ[1] @ JJ[1] + JJ[2] @ JJ[2]
+	I2 = II[0] @ II[0] + II[1] @ II[1] + II[2] @ II[2]
+	F2 = FF[0] @ FF[0] + FF[1] @ FF[1] + FF[2] @ FF[2]
 
 	dimS = SS[0].shape[0]
 	dimL = LL[0].shape[0]
@@ -102,25 +102,25 @@ def EvalsEvecs(I,L,S,J=0,B=0,IsotopeShift=0,PB=False):
 	A_fs, A_hfs, B_hfs, gI, gL = atomdata.atomic_structure_coefficients('Rb',I,L,J)
 
 	# Fine structure
-	LdotS = 1/2 * kron(J2 - (kron(L2,eye(dimS)) + kron(eye(dimL),S2)),eye(dimI))
+	LdotS = 1/2.0 * kron(J2 - (kron(L2,eye(dimS)) + kron(eye(dimL),S2)),eye(dimI))
 
 	# Spin orbit interaction
 	if J == None:
 		H += A_fs * LdotS
 	else:
 		# Recenter the appropriate J state on zero energy
-		so_correction_factor = -(J*(J + 1) - L*(L + 1) - S*(S + 1))/2
+		so_correction_factor = -(J*(J + 1) - L*(L + 1) - S*(S + 1))/2.0
 		H += A_fs * (LdotS + so_correction_factor*eye(dimF))
 
 	# Hyperfine structure
-	IdotJ = 1/2 * (F2 - (kron(eye(dimJ),I2) + kron(J2,eye(dimI))))
+	IdotJ = 1/2.0 * (F2 - (kron(eye(dimJ),I2) + kron(J2,eye(dimI))))
 
 	# Magnetic dipole interaction
 	H += A_hfs * IdotJ
 
 	# Electric quadrupole interaction
 	if B_hfs != 0:
-		H += B_hfs * (3*IdotJ**2 + 3/2*IdotJ - I*(I + 1)*J*(J + 1)*eye(dimF))/(2*I*(2*I - 1)*J*(2*J - 1))
+		H += B_hfs * (3*(IdotJ @ IdotJ) + 3/2.0*IdotJ - I*(I + 1)*J*(J + 1)*eye(dimF))/(2*I*(2*I - 1)*J*(2*J - 1))
 
 	# Zeeman interaction
 	H -= muB*B/h * (gL*kron(kron(LL[2],eye(dimS)),eye(dimI)) + gS*kron(kron(eye(dimL),SS[2]),eye(dimI)) + gI*kron(kron(eye(dimL),eye(dimS)),II[2]))
@@ -147,27 +147,38 @@ def BreitRabi(I,L,S,J=None,Bmax=1.5,ylim=None,save=False):
 	ax.set_ylabel('Energy (GHz)',fontweight='bold')
 	ax.set_xlim(0,Bmax)
 	if ylim != None:
-		ax.set_ylim(-ylim-1,ylim+1)
-	# fig.text(0.25,0.775,r'B = '+str(Bmax)+' T',size=16,ha='center')
+		ax.set_ylim(-ylim - 1,ylim + 1)
+	elif ylim == None:
+		ax.set_ylim(Es[-1].min()/1e9 - 1,Es[-1].max()/1e9 + 1)
 	fig.subplots_adjust(left=0.09,right=0.95,bottom=0.15,top=0.95)
 
 	fig.text(0.25,0.8,r'$^{87}$Rb',size=16,ha='center',fontweight='bold')
 	fig.text(0.25,0.775,r'L = '+str(L)+', J = '+str(fractions.Fraction(J))+', I = '+str(fractions.Fraction(I)),size=16,ha='center',fontweight='bold')
 
 	# Place an indicator at the field at which the HPB regime is entered
-	if np.logical_and(L == 0,(2*J+1) == 2):
-		ax.vlines(0.49,-ylim-1,ylim+1,color='r',ls=':')
-	if np.logical_and(L == 1,(2*J+1) == 2):
-		ax.vlines(0.06,-ylim-1,ylim+1,color='r',ls=':')
-	elif np.logical_and(L == 1,(2*J+1) == 4):
-		ax.vlines(0.04,-ylim-1,ylim+1,color='r',ls=':')
+	if ylim != None:
+		if np.logical_and(L == 0,(2*J + 1) == 2):
+			ax.vlines(0.49,-ylim-1,ylim+1,color='r',ls=':')
+		if np.logical_and(L == 1,(2*J + 1) == 2):
+			ax.vlines(0.06,-ylim-1,ylim+1,color='r',ls=':')
+		elif np.logical_and(L == 1,(2*J + 1) == 4):
+			ax.vlines(0.04,-ylim-1,ylim+1,color='r',ls=':')
+	else:
+		if np.logical_and(L == 0,(2*J + 1) == 2):
+			ax.vlines(0.49,Es[-1].min()/1e9 - 1,Es[-1].max()/1e9 + 1,color='r',ls=':')
+		if np.logical_and(L == 1,(2*J + 1) == 2):
+			ax.vlines(0.06,Es[-1].min()/1e9 - 1,Es[-1].max()/1e9 + 1,color='r',ls=':')
+		elif np.logical_and(L == 1,(2*J + 1) == 4):
+			ax.vlines(0.04,Es[-1].min()/1e9 - 1,Es[-1].max()/1e9 + 1,color='r',ls=':')
 
 	fig.text(0.135,0.675,r'$(F,m_{F})$',size=16,ha='center',fontweight='bold')
 	fig.text(0.865,0.895,r'$(J,m_{J};I,m_{I})$',size=16,ha='center',fontweight='bold')
 
+	plt.show()
+
 	if save == True:
-		plt.savefig('./UncoupledBasis_figures/B_'+str(B)+'_Rb_'+str(I)+'_'+str(L)+'_'+str(J)+'.pdf',dpi=300)
-		plt.savefig('./UncoupledBasis_figures/B_'+str(B)+'_Rb_'+str(I)+'_'+str(L)+'_'+str(J)+'.png',dpi=300)
+		plt.savefig('./UncoupledBasis_figures/Bmax_'+str(B)+'_Rb_I-'+str(I)+'_L-'+str(L)+'_J-'+str(J)+'.pdf',dpi=300)
+		plt.savefig('./UncoupledBasis_figures/Bmax_'+str(B)+'_Rb_I-'+str(I)+'_L-'+str(L)+'_J-'+str(J)+'.png',dpi=300)
 
 def MomentumDecomp(I,L,S,J=None,B=0,ylim=None,cutoff=0.001):
 	''' Calculates the admixture/decomposition of the atomic energy levels
