@@ -39,7 +39,7 @@ a0 = physical_constants['Bohr radius'][0]
 S = 1/2.0 #Electron spin
 gS = -physical_constants['electron g factor'][0]
 
-from elecsus.libs.durhamcolours import * # Optional: use colour palette from ElecSus installation
+from durhamcolours import * # Optional: use custom colour palette
 
 plt.rc('font',**{'family':'Serif','serif':['Times New Roman'],'weight':'bold'})
 params={'axes.labelsize':16,'xtick.labelsize':14,'ytick.labelsize':14,'legend.fontsize':12,'mathtext.fontset':'cm','mathtext.rm':'serif'}
@@ -73,7 +73,7 @@ def AM_MatAdd(j1,j2):
 	JJ = Jx,Jy,Jz
 	return JJ
 
-def EvalsEvecs(I,L,S,J=0,B=0,IsotopeShift=0,PB=False):
+def EvalsEvecs(atom='Rb',I,L,S,J=0,B=0,IsotopeShift=0,PB=False):
 	''' Calculates the eigenvalues (energies) of the atomic system.
 	Valid for linear Zeeman and hyperfine Paschen-Back regimes. '''
 
@@ -99,8 +99,8 @@ def EvalsEvecs(I,L,S,J=0,B=0,IsotopeShift=0,PB=False):
 
 	### Set up the hamiltonian in the uncoupled (S,L,I) basis ###
 	H = 0
-	# Import atomic constants - currently only for Rb
-	A_fs, A_hfs, B_hfs, gI, gL = atomdata.atomic_structure_coefficients('Rb',I,L,J)
+	# Import atomic constants - currently only for Rb,Cs
+	A_fs, A_hfs, B_hfs, gI, gL = atomdata.atomic_structure_coefficients(atom,I,L,J)
 
 	# Fine structure
 	LdotS = 1/2.0 * kron(J2 - (kron(L2,eye(dimS)) + kron(eye(dimL),S2)),eye(dimI))
@@ -132,7 +132,7 @@ def EvalsEvecs(I,L,S,J=0,B=0,IsotopeShift=0,PB=False):
 	# Return the eigenvalues and eigenvectors of the hamiltonian (eigensystem)
 	return eigh(H)
 
-def BreitRabi(I,L,S,J=None,Bmax=1.5,ylim=None,save=False):
+def BreitRabi(atom='Rb',I,L,S,J=None,Bmax=1.5,ylim=None,save=False):
 	''' Uses the eigenvalues of the atomic system to generate a Breit-Rabi
 	(Zeeman shift) diagram. '''
 
@@ -140,7 +140,7 @@ def BreitRabi(I,L,S,J=None,Bmax=1.5,ylim=None,save=False):
 	degen = (2*I + 1)*(2*L + 1)*(2*S + 1)
 	E_vals = zeros((len(B_vals),int(degen)))
 	for i in range(len(B_vals)):
-		E_vals[i,:] = EvalsEvecs(I,L,S,J,B_vals[i])[0] #Energies, in Hz
+		E_vals[i,:] = EvalsEvecs(atom='Rb',I,L,S,J,B_vals[i])[0] #Energies, in Hz
 
 	fig = plt.figure(facecolor='None',figsize=(10,8))
 	ax = fig.add_subplot(111)
@@ -160,42 +160,67 @@ def BreitRabi(I,L,S,J=None,Bmax=1.5,ylim=None,save=False):
 	fig.subplots_adjust(left=0.09,right=0.95,bottom=0.15,top=0.95)
 
 	# Optional text for adding details of the atom plotted
-	fig.text(0.245,0.81,r'$^{87}$Rb',size=16,ha='center',fontweight='bold')
+	if atom == 'Rb':
+		if int(2*I + 1) == 3:
+			fig.text(0.245,0.81,r'$^{87}$Rb',size=16,ha='center',fontweight='bold')
+		elif int(2*I + 1) == 5:
+			fig.text(0.245,0.81,r'$^{85}$Rb',size=16,ha='center',fontweight='bold')
+	elif atom == 'Cs':
+		fig.text(0.245,0.81,r'$^{133}$Cs',size=16,ha='center',fontweight='bold')
 	fig.text(0.245,0.785,r'L = '+str(L)+', J = '+str(fractions.Fraction(J))+', I = '+str(fractions.Fraction(I)),size=16,ha='center',fontweight='bold')
 
 	# Place an indicator at the field at which the HPB regime is entered
 	if ylim != None:
-		if np.logical_and(L == 0,(2*J + 1) == 2):
-			ax.vlines(0.49,-ylim-1,ylim+1,color='r',ls=':')
-		if np.logical_and(L == 1,(2*J + 1) == 2):
-			ax.vlines(0.06,-ylim-1,ylim+1,color='r',ls=':')
-		elif np.logical_and(L == 1,(2*J + 1) == 4):
-			ax.vlines(0.04,-ylim-1,ylim+1,color='r',ls=':')
+		if atom == 'Rb':
+			if int(2*I + 1) == 3:
+				if np.logical_and(L == 0,(2*J + 1) == 2):
+					ax.vlines(0.49,-ylim-1,ylim+1,color='r',ls=':')
+				if np.logical_and(L == 1,(2*J + 1) == 2):
+					ax.vlines(0.06,-ylim-1,ylim+1,color='r',ls=':')
+				elif np.logical_and(L == 1,(2*J + 1) == 4):
+					ax.vlines(0.04,-ylim-1,ylim+1,color='r',ls=':')
+		elif atom == 'Cs':
+			if np.logical_and(L == 0,(2*J + 1) == 2):
+				ax.vlines(0.66,-ylim-1,ylim+1,color='r',ls=':')
+			if np.logical_and(L == 1,(2*J + 1) == 2):
+				ax.vlines(0.08,-ylim-1,ylim+1,color='r',ls=':')
+			elif np.logical_and(L == 1,(2*J + 1) == 4):
+				ax.vlines(0.04,-ylim-1,ylim+1,color='r',ls=':')
 	else:
-		if np.logical_and(L == 0,(2*J + 1) == 2):
-			ax.vlines(0.49,E_vals[-1].min()/1e9 - 1,E_vals[-1].max()/1e9 + 1,color='r',ls=':')
-		if np.logical_and(L == 1,(2*J + 1) == 2):
-			ax.vlines(0.06,E_vals[-1].min()/1e9 - 1,E_vals[-1].max()/1e9 + 1,color='r',ls=':')
-		elif np.logical_and(L == 1,(2*J + 1) == 4):
-			ax.vlines(0.04,E_vals[-1].min()/1e9 - 1,E_vals[-1].max()/1e9 + 1,color='r',ls=':')
+		if atom == 'Rb':
+			if int(2*I + 1) == 3:
+			if np.logical_and(L == 0,(2*J + 1) == 2):
+				ax.vlines(0.49,E_vals[-1].min()/1e9 - 1,E_vals[-1].max()/1e9 + 1,color='r',ls=':')
+			if np.logical_and(L == 1,(2*J + 1) == 2):
+				ax.vlines(0.06,E_vals[-1].min()/1e9 - 1,E_vals[-1].max()/1e9 + 1,color='r',ls=':')
+			elif np.logical_and(L == 1,(2*J + 1) == 4):
+				ax.vlines(0.04,E_vals[-1].min()/1e9 - 1,E_vals[-1].max()/1e9 + 1,color='r',ls=':')
+		elif atom == 'Cs':
+			if np.logical_and(L == 0,(2*J + 1) == 2):
+				ax.vlines(0.66,E_vals[-1].min()/1e9 - 1,E_vals[-1].max()/1e9 + 1,color='r',ls=':')
+			if np.logical_and(L == 1,(2*J + 1) == 2):
+				ax.vlines(0.08,E_vals[-1].min()/1e9 - 1,E_vals[-1].max()/1e9 + 1,color='r',ls=':')
+			elif np.logical_and(L == 1,(2*J + 1) == 4):
+				ax.vlines(0.04,E_vals[-1].min()/1e9 - 1,E_vals[-1].max()/1e9 + 1,color='r',ls=':')
 
 	fig.text(0.135,0.675,r'$(F,m_{F})$',size=16,ha='center',fontweight='bold')
 	fig.text(0.865,0.705,r'$(J,m_{J};I,m_{I})$',size=16,ha='center',fontweight='bold')
 
 	plt.show()
 
+	# Save energy level diagram, as PNG and PDF, at print-quality resolution.
 	if save == True:
-		plt.savefig('./UncoupledBasis_figures/Bmax_'+str(B)+'_Rb_I-'+str(I)+'_L-'+str(L)+'_J-'+str(J)+'.pdf',dpi=300)
-		plt.savefig('./UncoupledBasis_figures/Bmax_'+str(B)+'_Rb_I-'+str(I)+'_L-'+str(L)+'_J-'+str(J)+'.png',dpi=300)
+		plt.savefig('./UncoupledBasis_figures/Bmax_'+str(B)+'_'+atom+'_I-'+str(I)+'_L-'+str(L)+'_J-'+str(J)+'.pdf',dpi=300)
+		plt.savefig('./UncoupledBasis_figures/Bmax_'+str(B)+'_'+atom+'_I-'+str(I)+'_L-'+str(L)+'_J-'+str(J)+'.png',dpi=300)
 
-def AM_StateDecomp(I,L,S,J=None,B=0,ylim=None,cutoff=0.001):
+def AM_StateDecomp(atom='Rb',I,L,S,J=None,B=0,ylim=None,cutoff=0.001):
 	''' Calculates the admixture/decomposition of the atomic energy levels
 	in terms of the uncoupled basis (m_L,m_S,m_I) states. '''
 
 	output_states = []
 	if ylim == None:
 		ylim = np.inf
-	Atom_eigsys = EvalsEvecs(I,L,S,J,B)
+	Atom_eigsys = EvalsEvecs(atom,I,L,S,J,B)
 	state_eigvecs = abs(Atom_eigsys[1])
 	state_energies = Atom_eigsys[0]/1e9
 	state_eigvecs,state_energies = state_eigvecs[:,::-1],state_energies[::-1] # Reverse the array so highest energy comes first
@@ -215,12 +240,12 @@ def AM_StateDecomp(I,L,S,J=None,B=0,ylim=None,cutoff=0.001):
 							state_decomp = '%.4f' % state_energies[i], '%.4f' % frac, r'$| %2s, %2s, %4s >$' % (str(fractions.Fraction(mI)),str(fractions.Fraction(mL)),str(fractions.Fraction(mS)))
 							print(state_decomp)
 							output_states.append(state_decomp)
-							#print mL+mI+mS
 			print('----------------------\n')
-			# np.savetxt('./Uncoupled basis results/DecoupledStates_'+str(I)+'_'+str(L)+'_'+str(J)+'_'+str(B)+'T.csv',output_states,delimiter=',')
+
 	return output_states
 
 if __name__=="__main__":
+	atom = 'Rb'
 	I = 3/2
 	L = 0
 	S = 1/2
@@ -231,18 +256,20 @@ if __name__=="__main__":
 	for B in Bvalues:
 		print('B = '+str(B))
 		print('Energies: \n')
-		print(EvalsEvecs(I,L,S,J,B)[0])
+		print(EvalsEvecs(atom,I,L,S,J,B)[0])
 		print('-----\t-----\t-----')
+
 		## Uncomment line below to save raw eigenvectors/values for the system
 		# np.savetxt('./UncoupledBasis_results/EigenVals_Rb_'+str(I)+'_'+str(L)+'_'+str(J)+'_'+str(B)+'T.csv',EvalsEvecs(I,L,S,J,B),delimiter=',')
 
 		g = 3/2.0 + (S*(S + 1) - L*(L + 1))/(2*J*(J + 1))
 		ylim = 1.5*J*((g*muB*B/h)/1e9)
-		BreitRabi(I,L,S,J,B,ylim=ylim,save=False)
-		decomp_states = AM_StateDecomp(I,L,S,J,B,ylim=ylim)
+		BreitRabi(atom,I,L,S,J,B,ylim=ylim,save=False)
+		decomp_states = AM_StateDecomp(atom,I,L,S,J,B,ylim=ylim)
+
 		## Uncomment lines below to save state decompositions
 		# results_decomp = './UncoupledBasis_results/StateDecomp_Rb_'+str(I)+'_'+str(L)+'_'+str(J)+'_'+str(B)+'T.txt'
 		# with open(results_decomp,'w') as file_output:
-		# 	print >> file_output, AM_StateDecomp(I,L,S,J,B,ylim=ylim)
+		# 	print >> file_output, decomp_states
 
 	plt.show()
