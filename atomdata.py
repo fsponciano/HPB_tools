@@ -12,7 +12,8 @@ def atomic_structure_coefficients(atom,I,L,J):
         Currently only contains information for Rb states with n=5, l=0,1,2
         and Cs states with n=6, l=0,1,2. Further data to be added...
     '''
-    # global  A_fs, A_hfs, B_hfs, gI, gL
+
+    # global A_fs,A_hfs,B_hfs,gI,gL
     if atom == 'Rb':
         if int(2*I+1e-10) == 3: # Rb 87
             gI = -0.0009951414
@@ -75,7 +76,7 @@ def atomic_structure_coefficients(atom,I,L,J):
                 B_hfs = 0
             elif int(2*J+1e-10) == 3:
                 A_hfs = 50.28827e6
-                B_hfs = −0.4934e6
+                B_hfs = -0.4934e6
                 C_hfs = 0.560e3
         elif L == 2:
             A_fs = 1.285060371217e12*2/5 # (2*S+1)/(2*L+1) or 1/(S+L)
@@ -86,4 +87,4 @@ def atomic_structure_coefficients(atom,I,L,J):
                 A_hfs = -4.66e6
                 B_hfs = 0.9e6
 
-    return A_fs, A_hfs, B_hfs, gI, gL
+    return A_fs,A_hfs,B_hfs,gI,gL
