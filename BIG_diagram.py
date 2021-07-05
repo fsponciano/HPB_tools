@@ -23,18 +23,16 @@ import numpy as np
 import matplotlib.pyplot as plt
 import time
 
-#fancy arrows
+# Fancy arrows
 from matplotlib.patches import ConnectionPatch
 import matplotlib.image as mpimg
 
-# parallel processing
+# Parallel processing
 from multiprocessing import Pool
 
 import sys,os
-# sys.path.append('E:\James\Documents\Programming\ElecSus arb Bfield\elecsus\libs')
 from elecsus.libs.spectra import get_spectra
 from elecsus.libs.spectra_energies import calc_chi_energies
-#sys.path.append('E:\James\Documents\Programming\ElecSus Boltzmann\elecsus\libs')
 import elecsus.libs.EigenSystem as ES
 
 from scipy.constants import physical_constants, epsilon_0, hbar, c, e, h
@@ -42,7 +40,7 @@ kB = physical_constants['Boltzmann constant'][0]
 mu_B = physical_constants['Bohr magneton in Hz/T'][0] / 1e9
 
 # State decomposition code
-from uncoupledbasis import MomentumDecomp
+from uncoupledbasis import AM_StateDecomp
 
 from durhamcolours import *
 
@@ -65,15 +63,15 @@ def eval_energies(args):
 
 def big_diagram(BFIELD=1000):
 	"""
-		Show spectrum (top panel)
-		Show Breit Rabi diagram for 0 to B-field
-		Draw horizontal lines for each ground and excited state
-		Draw arrows for each transition, underneath the corresponding part of the spectrum
-
+		Main code to plot 'big' diagram with the following components:
+		- Theoretical absorption spectrum (top panel)
+		- Breit Rabi diagram for 0 to specified B-field (left)
+		- Energy levels for ground and excited states (bottom panel)
+		- Arrows for each transition, underneath the corresponding part of the spectrum
 	"""
 
 	##
-	## First part - calculate the spectrum
+	## First part - calculate the absorption spectrum
 	##
 
 	# Define the detuning axis based on what the magnetic field strength is (in GHz)
@@ -91,7 +89,7 @@ def big_diagram(BFIELD=1000):
 	# Voigt, horizontal polarisation
 	pol = [1,0,0]
 	p_dict = {'T':TEMP,'lcell':LCELL,'Elem':ELEM,'rb85frac':RB85FRAC,'Dline':DLINE,
-		'Bfield':BFIELD,'Btheta':90*np.pi/180,'Bphi':90*np.pi/180,'BoltzmannFactor':True}
+		'Bfield':BFIELD,'Btheta':90*np.pi/180,'Bphi':45*np.pi/180,'BoltzmannFactor':True}
 
 	[S0,S1,S2,S3] = get_spectra(det_range*1e3,pol,p_dict,outputs=['S0','S1','S2','S3'])
 
@@ -107,9 +105,10 @@ def big_diagram(BFIELD=1000):
 	BreitRabiVals = np.linspace(0,BFIELD,2000)
 	BreitRabiVals = np.append(BreitRabiVals,BreitRabiVals[-1])
 	Bstep = BreitRabiVals[1] - BreitRabiVals[0]
+
 	# Calculate Zeeman-shifted energy levels in parallel (uses multiprocessing module)
 	po = Pool()
-	res = po.map_async(eval_energies,(("Rb87","D2",BreitRabiVals[k],) for k in xrange(len(BreitRabiVals))))
+	res = po.map_async(eval_energies,(("Rb87","D2",BreitRabiVals[k],) for k in range(len(BreitRabiVals))))
 	energies = res.get()
 	gnd_energies = np.zeros((len(energies[0][0]),len(BreitRabiVals)))
 	exc_energies = np.zeros((len(energies[0][1]),len(BreitRabiVals)))
@@ -129,7 +128,8 @@ def big_diagram(BFIELD=1000):
 
 	## Below values are for Rb-87. **Change for other atoms**.
 	I=3.0/2; L=0; S=1.0/2; J=1.0/2
-	output_states = AM_StateDecomp(atom='Rb',I,L,S,J,BFIELD/1e4)
+	output_states = AM_StateDecomp(I,L,S,J,atom='Rb',B=BFIELD/1e4)
+	print('\nState decomposition at B = ',BFIELD/1e4)
 	print(output_states)
 
 
@@ -197,8 +197,9 @@ def big_diagram(BFIELD=1000):
 	ax_e_bound = np.append(eleft,eright-eleft)
 	ax_g_bound = np.append(gleft,gright-gleft)
 
-	print ax_e_bound
-	print ax_g_bound
+	print('\nAxes bounds for B-R diagram:')
+	print(ax_e_bound)
+	print(ax_g_bound)
 
 	ax_e = fig.add_axes(ax_e_bound,frameon=False,facecolor=None)
 	ax_g = fig.add_axes(ax_g_bound,frameon=False,facecolor=None)
@@ -215,9 +216,9 @@ def big_diagram(BFIELD=1000):
 
 	# Edit last magnetic field value
 	BreitRabiVals[-1] = BreitRabiVals[-2] * ((xspec + xBR) / xBR)
-	print('Magnetic field values (Breit-Rabi diagram)')
+	print('\nMagnetic field values (Breit-Rabi diagram)')
 	print(BreitRabiVals)
-	ax_spec.plot(det_range,S0,lw=2,color=d_black)
+	ax_spec.plot(det_range,S0.real,lw=2,color=d_black)
 
 	#convert to GHz from MHz
 	exc_energies /= 1e3
@@ -245,8 +246,11 @@ def big_diagram(BFIELD=1000):
 	## Sixth part - Add arrows for each transition
 	##
 
+	print('Sigma minus transitions:')
 	print(sorted(lenergy87))
+	print('Sigma plus transitions:')
 	print(sorted(renergy87))
+	print('Pi transitions:')
 	print(sorted(zenergy87))
 
 	for energy in lenergy87:
@@ -326,6 +330,8 @@ def big_diagram(BFIELD=1000):
 
 	plt.show()
 
+	print('--- End of calculations ---')
+
 def make_vid_stills():
 	Brange = np.arange(0,3000,200)
 	Brange[0] = 1
@@ -347,9 +353,10 @@ def state_decomp(Bfield,T=120,L=1,Pol=50):
 	BreitRabiVals = np.linspace(0,Bfield,2000)
 	BreitRabiVals = np.append(BreitRabiVals,BreitRabiVals[-1])
 	Bstep = BreitRabiVals[1] - BreitRabiVals[0]
+
 	# do it in parallel! (Multiprocessing module)
 	po = Pool()
-	res = po.map_async(eval_energies,(("Rb87","D2",BreitRabiVals[k],) for k in xrange(len(BreitRabiVals))))
+	res = po.map_async(eval_energies,(("Rb87","D2",BreitRabiVals[k],) for k in range(len(BreitRabiVals))))
 	energies = res.get()
 	g_energies = np.zeros((len(energies[0][0]),len(BreitRabiVals)))
 	e_energies = np.zeros((len(energies[0][1]),len(BreitRabiVals)))
@@ -363,8 +370,8 @@ def state_decomp(Bfield,T=120,L=1,Pol=50):
 
 	## Rb-87 only!
 	I = 3./2; L = 0; S=1./2; J=1./2
-	output_states = AM_StateDecomp(atom='Rb',I,L,S,J,Bfield/1e4)
-	print output_states
+	output_states = AM_StateDecomp(I,L,S,J,atom='Rb',B=Bfield/1e4)
+	print(output_states)
 
 
 	## make figure
@@ -410,26 +417,27 @@ def state_decomp(Bfield,T=120,L=1,Pol=50):
 	fig.savefig('./movie_stills_decomposition/BoltzmannPlot'+str(Bfield)+'.png')
 
 def make_decomp_vid_stills():
-	Brange = np.arange(0,3000,100)
+	Brange = np.arange(0,3000,200)
 	Brange[0] = 10
 	Brange = np.append(Brange,np.arange(3000,15000,1000))
 	Brange = np.append(Brange,np.arange(15000,85000,5000))
-	print 'Number of frames:', len(Brange), '\n\n\n'
+	print('Number of frames:', len(Brange), '\n\n\n')
 
 	for B in Brange:
 		state_decomp(B)
 
 def Boltz_factor(Bfield,T=120, L=1, Pol=50):
-	""" Make Briet-Rabi diagram with Boltzmann factor """
+	""" Make Breit-Rabi diagram with Boltzmann factor """
 
-	## calcualte BR
+	## Calculate BR
 
 	BreitRabiVals = np.linspace(0,Bfield,2000)
 	BreitRabiVals = np.append(BreitRabiVals,BreitRabiVals[-1])
 	Bstep = BreitRabiVals[1] - BreitRabiVals[0]
+
 	# do it in parallel! (Multiprocessing module)
 	po = Pool()
-	res = po.map_async(eval_energies, (("Rb87","D2",BreitRabiVals[k],) for k in xrange(len(BreitRabiVals))))
+	res = po.map_async(eval_energies, (("Rb87","D2",BreitRabiVals[k],) for k in range(len(BreitRabiVals))))
 	energies = res.get()
 	g_energies = np.zeros((len(energies[0][0]),len(BreitRabiVals)))
 	e_energies = np.zeros((len(energies[0][1]),len(BreitRabiVals)))
@@ -443,14 +451,14 @@ def Boltz_factor(Bfield,T=120, L=1, Pol=50):
 	## calculate state decomposition
 	## Rb-87 only!
 	I = 3./2; L = 0; S=1./2; J=1./2
-	output_states = MomentumDecomp(I,L,S,J,Bfield/1e4)
-	print output_states
+	output_states = AM_StateDecomp(I,L,S,J,atom='Rb',B=Bfield/1e4)
+	print(output_states)
 
 	#calculate Boltzmann factor
-	p = [ 'Rb', 'D2', Bfield, T, 1, 0, T, 45, Pol, 0, 30, True, 0, 0, True]
+	p = ['Rb','D2',Bfield,T,1,0,T,45,Pol,0,30,True,0,0,True]
 	bd, ge = calculate(np.array([1]), p, OutputType='Boltz')
 
-	print bd, ge
+	print(bd, ge)
 	bd = np.array(bd)
 	bd /= bd.max()
 
@@ -488,17 +496,17 @@ def Boltz_factor(Bfield,T=120, L=1, Pol=50):
 	fig.savefig('./movie_stills_Bfactor/BoltzmannPlot'+str(Bfield)+'.png')
 
 def make_Bfactor_stills():
-	Brange = np.arange(0,3000,100)
+	Brange = np.arange(0,3000,200)
 	Brange[0] = 10
 	Brange = np.append(Brange,np.arange(3000,15000,1000))
 	Brange = np.append(Brange,np.arange(15000,85000,5000))
-	print 'Number of frames:', len(Brange), '\n\n\n'
+	print('Number of frames:', len(Brange), '\n\n\n')
 
 	for B in Brange:
 		Boltz_factor(B)
 
 if __name__ == '__main__':
-	Bfields = [4000,15000,80000,350000]
+	Bfields = [4000,15000]
 	for Bfield in Bfields:
 		big_diagram(Bfield)
 	#make_vid_stills()
