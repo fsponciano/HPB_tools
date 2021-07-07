@@ -10,4 +10,7 @@ Currently tested for rubidium (n = 5) in experiments realised in QLM @ Durham Un
 
 `durhamcolours`: Custom colour codes for use in plotting.
 
+`BIG_diagram`: Code for plotting a "big" diagram composed of: 1) atomic energy levels as a function of magnetic field strength, 2) calculated atomic absorption spectrum at maximum value of magnetic field and 3) dipole-allowed transitions from ground-state to excited-state energy levels ($$\pi,\sigma^{\pm}$$).
+*Note: requires installation of [ElecSus](https://github.com/jameskeaveney/ElecSus) for calculation of absorption spectra.*
+
 *Additional details coming soon...*
