@@ -61,7 +61,7 @@ def eval_energies(args):
 	DlineHamiltonian = ES.Hamiltonian(isotope,Dline,1.0,Bfield)
 	return DlineHamiltonian.groundEnergies, DlineHamiltonian.excitedEnergies
 
-def big_diagram(BFIELD=1000):
+def big_diagram(BFIELD=1000,output='S0'):
 	"""
 		Main code to plot 'big' diagram with the following components:
 		- Theoretical absorption spectrum (top panel)
@@ -75,6 +75,7 @@ def big_diagram(BFIELD=1000):
 	##
 
 	# Define the detuning axis based on what the magnetic field strength is (in GHz)
+	# Values for BFIELD should be given in Gauss (1 G = 1e-4 T)
 	Dmax = max(6,5 + (BFIELD/1e4 * 3 * mu_B))
 	det_range = np.linspace(-Dmax,Dmax,int(3e4))
 
@@ -180,7 +181,6 @@ def big_diagram(BFIELD=1000):
 	ax_spec.xaxis.set_label_position('top')
 	ax_spec.tick_params(axis='x',bottom=True,top=True,labelbottom=False,labeltop=True)
 
-	ax_spec.set_ylabel('Transmission')
 	ax_excBR.set_ylabel('$5P_{3/2}$ energy (GHz)')
 	ax_gndBR.set_ylabel('$5S_{1/2}$ energy (GHz)')
 
@@ -218,7 +218,18 @@ def big_diagram(BFIELD=1000):
 	BreitRabiVals[-1] = BreitRabiVals[-2] * ((xspec + xBR) / xBR)
 	print('\nMagnetic field values (Breit-Rabi diagram)')
 	print(BreitRabiVals)
-	ax_spec.plot(det_range,S0.real,lw=2,color=d_black)
+	if output == 'S0':
+		ax_spec.set_ylabel('Transmission, $S_{0}$')
+		ax_spec.plot(det_range,S0.real,lw=2,color=d_black)
+	elif output == 'S1':
+		ax_spec.set_ylabel('$S_{1}$')
+		ax_spec.plot(det_range,S1.real,lw=2,color=d_black)
+	elif output == 'S2':
+		ax_spec.set_ylabel('$S_{2}$')
+		ax_spec.plot(det_range,S2.real,lw=2,color=d_black)
+	elif output == 'S3':
+		ax_spec.set_ylabel('$S_{3}$')
+		ax_spec.plot(det_range,S3.real,lw=2,color=d_black)
 
 	#convert to GHz from MHz
 	exc_energies /= 1e3
@@ -325,22 +336,52 @@ def big_diagram(BFIELD=1000):
 
 	ax_spec.set_xlim(-Dmax,Dmax)
 
-	# fig.savefig('./BR_plotoutput'+str(Bfield)+'.pdf',dpi=300)
-	# fig.savefig('./BR_plotoutput'+str(Bfield)+'.png',dpi=300)
+	# fig.savefig('./BR_plot_'+str(Bfield)+str(output)'.pdf',dpi=300)
+	# fig.savefig('./BR_plot_'+str(Bfield)+str(output)'.png',dpi=300)
 
 	plt.show()
-
 	print('--- End of calculations ---')
+	return fig
 
-def make_vid_stills():
-	Brange = np.arange(0,3000,200)
-	Brange[0] = 1
-	Brange = np.append(Brange,np.arange(3000,15000,1000))
-	Brange = np.append(Brange,np.arange(15000,85000,5000))
+def make_ani_frames(output='S0'):
+	import pickle
+	Brange = np.arange(0,3000,100)
+	# Brange[0] = 1
+	# Brange = np.append(Brange,np.arange(3000,15000,500))
+	# Brange = np.append(Brange,np.arange(15000,100000,2500))
 	print('Number of frames: ',len(Brange))
 
+	frames = []
+	try:
+		os.mkdir('./Animation_frames')
+	except OSError:
+		pass
+
 	for B in Brange:
-		big_diagram(B)
+		frame = big_diagram(B,output)
+		frame.savefig('./Animation_frames/BR_plot_'+str(output)+'_'+str(B/1e4)+'.png',dpi=300)
+		frames.append(frame)
+
+	frames = np.array(frames)
+	pickle.dump(frames,open('./Animation_frames/BR_animation_'+str(output)+'.pkl','wb'))
+	return frames
+
+def make_animation():
+	import imageio
+	import glob
+
+	frames = glob.glob('./Animation_frames/BR_plot_S0_*.png')
+	try:
+		os.mkdir('./Animations')
+	except OSError:
+		pass
+
+	vid_writer = imageio.get_writer('./Animations/testS0.mp4',format='FFMPEG',mode='I',fps=0.5)
+	for frame in frames:
+		img_data = imageio.imread(frame,format='.png')
+		vid_writer.append_data(img_data)
+
+	vid_writer.close()
 
 def state_decomp(Bfield,T=120,L=1,Pol=50):
 	""" Make Briet-Rabi diagram with Boltzmann factor """
@@ -414,7 +455,7 @@ def state_decomp(Bfield,T=120,L=1,Pol=50):
 	ax.tick_params(axis='y',left=True,right=False)
 
 	#fig.savefig('./movie_stills_Bfactor/BoltzmannPlot'+str(Bfield)+'.pdf')
-	fig.savefig('./movie_stills_decomposition/BoltzmannPlot'+str(Bfield)+'.png')
+	# fig.savefig('./movie_stills_decomposition/BoltzmannPlot'+str(Bfield)+'.png')
 
 def make_decomp_vid_stills():
 	Brange = np.arange(0,3000,200)
@@ -508,5 +549,5 @@ def make_Bfactor_stills():
 if __name__ == '__main__':
 	Bfields = [4000,15000]
 	for Bfield in Bfields:
-		big_diagram(Bfield)
+		big_diagram(Bfield,output='S0')
 	#make_vid_stills()
