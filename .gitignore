@@ -127,3 +127,9 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Custom settings
+Animations/
+Animation_frames/
+UncoupledBasis_figures/
+UncoupledBasis_results/
